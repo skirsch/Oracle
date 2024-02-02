@@ -3,6 +3,7 @@
 -- default profile and STEVE
 SELECT resource_name, limit FROM dba_profiles WHERE profile = 'DEFAULT';
 SELECT * FROM dba_users WHERE username = 'STEVE'; -- case sensitive!!! can see my profile
+-- show all users and their profile
 SELECT * FROM dba_users;
 
 
@@ -10,6 +11,7 @@ create user steve identified by Andy default tablespace users quota unlimited on
 grant create user to steve;
 grant create role to steve;
 grant dba to steve;
+grant create any directory to steve;
 grant create tablespace, create table, create view, create session, drop tablespace to steve;
 alter user steve identified by steve; -- change password
 

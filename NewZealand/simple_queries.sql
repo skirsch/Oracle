@@ -33,3 +33,8 @@ GROUP BY
     TO_CHAR(vax_date, 'YYYY-MM'), dose_number
 ORDER BY 
     vax_month, dose_number;
+
+SELECT TRUNC(TO_DATE('17-OCT-2093','DD-MON-YYYY'),'day')
+  "mydate" FROM DUAL;
+  
+select * from DUAL;

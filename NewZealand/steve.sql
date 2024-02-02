@@ -1,51 +1,13 @@
-
-
-
-
-
+-- see mortality tables file for the analysis of deaths since dose given
 
     
--- more sophisticated version with two columns:
+-- Look at how many people died from the NHI database
 SELECT
     SUM(CASE WHEN dod- to_date('01-JAN-2022') between 0 and 365 THEN 1 ELSE 0 END) AS num_dead_2022,
     SUM(CASE WHEN dod- to_date('01-JAN-2023') between 0 and 365 THEN 1 ELSE 0 END) AS num_dead_2023
 FROM NHI_PROD.NHI_EXTRACT;
 
--- this is for ALL ages so subject to age mix differences between the doses.
--- need to break out by age
-DECLARE
-  sql_query CLOB;
-BEGIN
-  -- Initialize the SQL query
-  sql_query := 'CREATE TABLE a2 AS
-                SELECT
-                  TO_CHAR(vax_date, ''YYYY-MM'') AS vax_month,
-                  dose_number,
-                  COUNT(*) AS num_vaxxed, ';
 
-  -- Generate the dynamic column expressions for deaths per month
-  FOR i IN 1..24 LOOP
-    sql_query := sql_query || 'SUM(CASE WHEN DOD BETWEEN ADD_MONTHS(vax_date, ' || (i - 1) || ') AND ADD_MONTHS(vax_date, ' || i || ')-1 THEN 1 ELSE 0 END) AS month_' || i || ', ';
-  END LOOP;
-
-  -- Remove the trailing comma and space
-  sql_query := RTRIM(sql_query, ', ');
-
-  -- Complete the SQL query
-  sql_query := sql_query || ' FROM joined_table
-                              WHERE dose_number BETWEEN 1 AND 5 -- to limit dose range
-                             GROUP BY TO_CHAR(vax_date, ''YYYY-MM''), dose_number
-                             ORDER BY vax_month, dose_number';
-
-  -- Execute the dynamic SQL
-  EXECUTE IMMEDIATE sql_query;
-END;
-/
-
-
-CREATE INDEX idx_joined_table_vax_date ON joined_table(vax_date);
-CREATE INDEX idx_joined_table_dob ON joined_table(dob);
-CREATE INDEX idx_joined_table_dod ON joined_table(dod);
 
 
 -- add a new column
@@ -321,9 +283,6 @@ WHERE TRUNC(MONTHS_BETWEEN(vax_date, dob) / 12) BETWEEN 70 AND 100  -- age
 GROUP BY dose_number;
 
 
-    
-
-
 -- copilot code works to create % died over different ages and doses PERCENT DIED
 -- but the date range is a bit crude of a calculation since it is year minus year
 CREATE TABLE percent_died AS
@@ -377,7 +336,7 @@ WHERE dose_number BETWEEN 1 AND 5
 GROUP BY dose_number, TRUNC((vax_date - DOB)/365.25);
 
 
--- new chatgpt code gives error
+-- chatgpt code gives error
 CREATE TABLE percent_died_by_age AS
 SELECT
   dose_number,
@@ -499,22 +458,6 @@ and dod is not null;
 
 
 
-CREATE TABLE deaths_yr AS
-SELECT * FROM (
-  SELECT 
-    EXTRACT(YEAR FROM DOD) as Year, 
-    EXTRACT(YEAR FROM DOD) - EXTRACT(YEAR FROM DOB) as Age_At_Death
-  FROM NHI_PROD.NHI_EXTRACT
-  WHERE 
-    EXTRACT(YEAR FROM DOD) BETWEEN 2010 AND 2023 AND 
-    EXTRACT(YEAR FROM DOD) - EXTRACT(YEAR FROM DOB) BETWEEN 15 AND 130
-)
-PIVOT (
-  COUNT(Age_At_Death)
-  FOR Age_At_Death IN (60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100)
-);
-
-
 -- deaths per year (ages are columns)
 CREATE TABLE deaths_all_ages AS
 SELECT * FROM (
@@ -533,274 +476,5 @@ PIVOT (
 
 
 
--- see if there are deaths in young kids
-SELECT count(*)
-FROM NHI
-where
-extract (year from DOB) between 2020 and 2024
-and dod is not null;
 
-SELECT MAX(DOD) AS LargestDateOfDeath FROM NHI;
-
-SELECT
-  EXTRACT(MONTH FROM DOD) AS Month,
-  COUNT(*) AS NumberOfDeaths
-FROM
-  NHI
-WHERE
-  EXTRACT(YEAR FROM DOD) = 2023
-  AND EXTRACT(MONTH FROM DOD) IN (9, 10, 11)
-GROUP BY
-  EXTRACT(MONTH FROM DOD)
-ORDER BY
-  Month;
-  
-  # deaths run till Oct 6, 2023 (last full day of deaths)
-  SELECT
-  EXTRACT(DAY FROM DOD) AS Day,
-  COUNT(*) AS NumberOfDeaths
-FROM
-  NHI
-WHERE
-  EXTRACT(YEAR FROM DOD) = 2023
-  AND EXTRACT(MONTH FROM DOD) = 10
-GROUP BY
-  EXTRACT(DAY FROM DOD)
-ORDER BY
-  Day;
-  
-CREATE TABLE vax_stats AS
-SELECT
-  date_trunc('day', v.vax_date) AS date,
-  SUM(CASE WHEN d.Dose_number IS NULL AND v.vax_date = MIN(v.vax_date OVER (PARTITION BY v.NHI)) THEN 1 END) AS first_vaxxed,
-  SUM(CASE WHEN d.Dose_number IS NOT NULL THEN 1 END) AS doses_given,
-  SUM(CASE WHEN d.Dose_number = 1 THEN 1 END) AS dose_1,
-  SUM(CASE WHEN d.Dose_number = 2 THEN 1 END) AS dose_2,
-  COUNT(DISTINCT v.NHI) AS unique_deaths
-FROM (
-  SELECT NHI, vax_date AS date, Dose_number
-  FROM joined_table
-  WHERE vax_date >= DATE '2021-05-01' AND vax_date < DATE '2021-05-31'
-) AS d
-INNER JOIN (
-  SELECT NHI, MIN(vax_date) AS vax_date
-  FROM joined_table
-  WHERE vax_date >= DATE '2021-05-01' AND vax_date < DATE '2021-05-31'
-  GROUP BY NHI
-) AS v
-ON d.NHI = v.NHI AND d.date = v.vax_date
-LEFT JOIN joined_table
-ON d.NHI = joined_table.NHI AND d.date = joined_table.DOD
-GROUP BY date_trunc('day', v.vax_date)
-ORDER BY date;
-
-
--- wow. this worked after date_trunc changed to trunc in two places
-CREATE TABLE vax_stats AS
-SELECT
-    DATE'2021-05-01' + LEVEL - 1 AS ReportingDate,
-    COUNT(DISTINCT CASE WHEN vax_date = DATE'2021-05-01' + LEVEL - 1 AND Dose_number = 1 THEN NHI END) AS FirstVaccineToday,
-    COUNT(CASE WHEN vax_date = DATE'2021-05-01' + LEVEL - 1 THEN NHI END) AS TotalDosesGivenToday,
-    COUNT(CASE WHEN vax_date = DATE'2021-05-01' + LEVEL - 1 AND Dose_number = 1 THEN NHI END) AS Dose1GivenToday,
-    COUNT(CASE WHEN vax_date = DATE'2021-05-01' + LEVEL - 1 AND Dose_number = 2 THEN NHI END) AS Dose2GivenToday,
-    COUNT(DISTINCT CASE WHEN DOD = DATE'2021-05-01' + LEVEL - 1 THEN NHI END) AS UniquePeopleDiedToday
-FROM
-    joined_table
-CONNECT BY
-    DATE'2021-05-01' + LEVEL - 1 <= DATE'2021-05-30'
-GROUP BY
-    DATE'2021-05-01' + LEVEL - 1
-ORDER BY
-    ReportingDate;
-
-CREATE TABLE vax_stats AS
-SELECT
-  trunc(v.vax_date) AS date,
-  SUM(CASE WHEN d.Dose_number IS NULL AND v.vax_date = MIN(v.vax_date OVER (PARTITION BY v.NHI)) THEN 1 END) AS first_vaxxed,
-  SUM(CASE WHEN d.Dose_number IS NOT NULL THEN 1 END) AS doses_given,
-  SUM(CASE WHEN d.Dose_number = 1 THEN 1 END) AS dose_1,
-  SUM(CASE WHEN d.Dose_number = 2 THEN 1 END) AS dose_2,
-  COUNT(DISTINCT v.NHI) AS unique_deaths
-FROM (
-  SELECT NHI, vax_date AS date, Dose_number
-  FROM joined_table 
-  WHERE vax_date >= DATE '2021-05-01' AND vax_date < DATE '2021-05-31'
-) AS d
-INNER JOIN (
-  SELECT NHI, MIN(vax_date) AS vax_date
-  FROM joined_table
-  WHERE vax_date >= DATE '2021-05-01' AND vax_date < DATE '2021-05-31'
-  GROUP BY NHI
-) AS v
-ON d.NHI = v.NHI AND d.date = v.vax_date
-LEFT JOIN joined_table
-ON d.NHI = joined_table.NHI AND d.date = joined_table.DOD
-GROUP BY trunc(v.vax_date)
-ORDER BY date;
-
-CREATE TABLE vax_stats AS
-SELECT
-  date_trunc('day', v.vax_date) AS date,
-  SUM(CASE WHEN d.Dose_number IS NULL AND v.vax_date = MIN(v.vax_date) OVER (PARTITION BY v.NHI) THEN 1 END) AS first_vaxxed,
-  SUM(CASE WHEN d.Dose_number IS NOT NULL THEN 1 END) AS doses_given,
-  SUM(CASE WHEN d.Dose_number = 1 THEN 1 END) AS dose_1,
-  SUM(CASE WHEN d.Dose_number = 2 THEN 1 END) AS dose_2,
-  COUNT(DISTINCT v.NHI) AS unique_deaths
-FROM (
-  SELECT NHI, vax_date AS date, Dose_number
-  FROM joined_table
-  WHERE vax_date >= DATE '2021-05-01' AND vax_date < DATE '2021-05-31'
-) AS d
-INNER JOIN (
-  SELECT NHI, MIN(vax_date) AS vax_date
-  FROM joined_table
-  WHERE vax_date >= DATE '2021-05-01' AND vax_date < DATE '2021-05-31'
-  GROUP BY NHI
-) AS v
-ON d.NHI = v.NHI AND d.date = v.vax_date
-LEFT JOIN joined_table
-ON d.NHI = joined_table.NHI AND d.date = joined_table.DOD
-GROUP BY date_trunc('day', v.vax_date)
-ORDER BY date;
-
-The error in your Oracle SQL query is likely due to the use of the `LEFT JOIN` clause without specifying an alias for the `joined_table`. In your query, you've used `joined_table` in two subqueries and again in the `LEFT JOIN` clause without an alias, 
-which could be causing confusion for the SQL parser about which instance of `joined_table` to refer to.
-
-Here's a corrected version of your query where I've added an alias `jt` for the `joined_table` in the `LEFT JOIN` clause:
-
-
-CREATE TABLE vax_stats AS
-SELECT
-  TRUNC(v.vax_date) AS date,
-  SUM(CASE WHEN d.Dose_number IS NULL AND v.vax_date = MIN(v.vax_date) OVER (PARTITION BY v.NHI) THEN 1 END) AS first_vaxxed,
-  SUM(CASE WHEN d.Dose_number IS NOT NULL THEN 1 END) AS doses_given,
-  SUM(CASE WHEN d.Dose_number = 1 THEN 1 END) AS dose_1,
-  SUM(CASE WHEN d.Dose_number = 2 THEN 1 END) AS dose_2,
-  COUNT(DISTINCT v.NHI) AS unique_deaths
-FROM (
-  SELECT NHI, vax_date AS date, Dose_number
-  FROM joined_table
-  WHERE vax_date >= DATE '2021-05-01' AND vax_date < DATE '2021-05-31'
-) d
-INNER JOIN (
-  SELECT NHI, MIN(vax_date) AS vax_date
-  FROM joined_table
-  WHERE vax_date >= DATE '2021-05-01' AND vax_date < DATE '2021-05-31'
-  GROUP BY NHI
-) v
-ON d.NHI = v.NHI AND d.date = v.vax_date
-LEFT JOIN joined_table jt
-ON d.NHI = jt.NHI AND d.date = jt.DOD
-GROUP BY TRUNC(v.vax_date)
-ORDER BY date;
-
-SELECT TRUNC(TO_DATE('17-OCT-2093','DD-MON-YYYY'),'day')
-  "mydate" FROM DUAL;
-  
-select * from DUAL;
  
- -- not properly terminated
- CREATE TABLE deaths_all_ages_monthly AS
-SELECT
-  TO_CHAR(
-    ADD_MONTHS(TRUNC('YEAR', MIN(DOD)), n - 1),
-    'YYYY-MM'
-  ) AS month,
-  SUM(CASE WHEN Age_At_Death = n THEN 1 ELSE 0 END) AS deaths_age_n
-FROM (
-  SELECT
-    DOD,
-    EXTRACT(YEAR FROM DOD) AS Year,
-    EXTRACT(YEAR FROM DOD) - EXTRACT(YEAR FROM DOB) AS Age_At_Death
-  FROM NHI_PROD.NHI_EXTRACT
-  WHERE
-    EXTRACT(YEAR FROM DOD) BETWEEN 2010 AND 2023 AND
-    EXTRACT(YEAR FROM DOD) - EXTRACT(YEAR FROM DOB) BETWEEN 0 AND 130
-) AS deaths_data
-UNPIVOT (
-  deaths_age_n
-  FOR n IN (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130)
-) AS deaths_by_month
-ORDER BY month;
-
--- new try for deaths per month
-CREATE TABLE deaths_all_ages AS
-SELECT
-  TO_CHAR(
-    ADD_MONTHS(TRUNC('YEAR', MIN(DOD)), n - 1),
-    'YYYY-MM'
-  ) AS month,
-  COALESCE(SUM(CASE WHEN Age_At_Death = n THEN 1 ELSE 0 END), 0) AS deaths_age_n
-FROM (
-  SELECT
-    DOD,
-    EXTRACT(YEAR FROM DOD) AS YEAR,
-    EXTRACT(YEAR FROM DOD) - EXTRACT(YEAR FROM DOB) AS Age_At_Death
-  FROM NHI_PROD.NHI_EXTRACT
-  WHERE
-    EXTRACT(YEAR FROM DOD) BETWEEN 2010 AND 2023 AND
-    EXTRACT(YEAR FROM DOD) - EXTRACT(YEAR FROM DOB) BETWEEN 0 AND 130
-) AS deaths_data
-UNPIVOT (
-  COALESCE(deaths_age_n, 0) AS deaths_age_n
-  FOR n IN (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130)
-) AS deaths_by_month
-ORDER BY month;
-
--- from chatgpt; this worked!
-CREATE TABLE deaths_all_ages_by_month AS
-SELECT
-  EXTRACT(YEAR FROM DOD) AS Year,
-  EXTRACT(MONTH FROM DOD) AS Month,
-  COUNT(CASE WHEN EXTRACT(YEAR FROM DOD) - EXTRACT(YEAR FROM DOB) = 0 THEN 1 END) AS Age_0,
-  COUNT(CASE WHEN EXTRACT(YEAR FROM DOD) - EXTRACT(YEAR FROM DOB) = 1 THEN 1 END) AS Age_1,
-  COUNT(CASE WHEN EXTRACT(YEAR FROM DOD) - EXTRACT(YEAR FROM DOB) = 2 THEN 1 END) AS Age_2
-  -- Add similar lines for other age groups up to 130
-FROM
-  NHI_PROD.NHI_EXTRACT
-WHERE 
-  EXTRACT(YEAR FROM DOD) BETWEEN 2010 AND 2023 AND 
-  EXTRACT(YEAR FROM DOD) - EXTRACT(YEAR FROM DOB) BETWEEN 0 AND 130
-GROUP BY
-  EXTRACT(YEAR FROM DOD), EXTRACT(MONTH FROM DOD)
-ORDER BY
-  Year, Month;
-
--- now do it an auto generate the field names!
-DECLARE
-  sql_query CLOB;
-  column_names CLOB := '';
-  age_limit NUMBER := 120;
-BEGIN
-  -- Generate column names
-  FOR i IN 0..age_limit LOOP
-    column_names := column_names || 'COUNT(CASE WHEN EXTRACT(YEAR FROM DOD) - EXTRACT(YEAR FROM DOB) = ' || i || ' THEN 1 END) AS Age_' || i || ', ';
-  END LOOP;
-
-  -- Remove the trailing comma and space
-  column_names := RTRIM(column_names, ', ');
-
-  -- Construct the dynamic SQL
-  sql_query := 'CREATE TABLE deaths_all_ages_monthly AS SELECT
-                  EXTRACT(YEAR FROM DOD) AS Year,
-                  EXTRACT(MONTH FROM DOD) AS Month, ' || column_names || '
-                FROM NHI_PROD.NHI_EXTRACT
-                WHERE 
-                  EXTRACT(YEAR FROM DOD) BETWEEN 2010 AND 2023 AND 
-                  EXTRACT(YEAR FROM DOD) - EXTRACT(YEAR FROM DOB) BETWEEN 0 AND ' || age_limit || '
-                GROUP BY
-                  EXTRACT(YEAR FROM DOD), EXTRACT(MONTH FROM DOD)
-                ORDER BY
-                  Year, Month';
-
-  -- Execute the dynamic SQL
-  EXECUTE IMMEDIATE sql_query;
-END;
-/
-
-
-CREATE OR REPLACE DIRECTORY ORACLE_DIR AS 'c:\tmp\ORACLE_DIR';
-
-
-
-
