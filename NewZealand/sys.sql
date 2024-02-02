@@ -1,3 +1,6 @@
+
+-- look at security protocols like number of failed logins for
+-- default profile and STEVE
 SELECT resource_name, limit FROM dba_profiles WHERE profile = 'DEFAULT';
 SELECT * FROM dba_users WHERE username = 'STEVE'; -- case sensitive!!! can see my profile
 SELECT * FROM dba_users;

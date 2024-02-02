@@ -1,3 +1,8 @@
+-- the last cutoff day for the NHI database is October 7 2023 
+-- that is the date of the last entries.
+-- filter DOD>'6-OCT-2023' will give a few deaths
+
+-- total record count
 select count(1) from "NHI_PROD"."NHI_EXTRACT";
 
 -- see how many died in a given year
