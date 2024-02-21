@@ -96,3 +96,17 @@ SELECT count(*) as num_vaxxed,
 WHERE dose_number=1 and 
     TRUNC(MONTHS_BETWEEN(vax_date, dob) / 12) BETWEEN 65 AND 69 AND
     trunc(vax_date)<'5-oct-2022';  -- so has 365 days to die
+
+-- count of # of deaths of people 100 years by week
+SELECT
+    TO_CHAR(DOD, 'IW') AS week_number,
+    COUNT(*) AS num_deaths
+FROM
+    nhi
+WHERE
+    EXTRACT(YEAR FROM DOD) = 2022
+    AND EXTRACT(YEAR FROM DOD) - EXTRACT(YEAR FROM DOB) >= 100
+GROUP BY
+    TO_CHAR(DOD, 'IW')
+ORDER BY
+    TO_CHAR(DOD, 'IW');
