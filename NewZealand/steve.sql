@@ -1,13 +1,16 @@
 -- see mortality tables file for the analysis of deaths since dose given
 
     
--- Look at how many people died from the NHI database
+-- Look at how many people died from the NHI database regardless of jab!
 SELECT
+    SUM(CASE WHEN dod- to_date('01-JAN-2020') between 0 and 365 THEN 1 ELSE 0 END) AS num_dead_2020,
+    SUM(CASE WHEN dod- to_date('01-JAN-2021') between 0 and 365 THEN 1 ELSE 0 END) AS num_dead_2021,
     SUM(CASE WHEN dod- to_date('01-JAN-2022') between 0 and 365 THEN 1 ELSE 0 END) AS num_dead_2022,
     SUM(CASE WHEN dod- to_date('01-JAN-2023') between 0 and 365 THEN 1 ELSE 0 END) AS num_dead_2023
-FROM NHI_PROD.NHI_EXTRACT;
+FROM NHI;
 
-
+# count number of people who got dose 1
+SELECT count(*) as num_vaxxed from joined_table where dose_number=1;
 
 
 -- add a new column
