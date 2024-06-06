@@ -58,7 +58,9 @@ CREATE TABLE product(
    product_category VARCHAR(30),
    product_brand    VARCHAR(20),
    product_expire   DATE,
-   PRIMARY KEY (product_id));
-INSERT INTO product (product_id, supplier_id) VALUES (1, 2);
+   PRIMARY KEY (product_id));   # constrains this to be unique so subsequent inserts will fail
+INSERT INTO product (product_id, supplier_id) VALUES (3, 5);
 select * from product;
-select product_id,supplier_id from product;
+select product_id,supplier_id from product order by product_id;
+
+INSERT INTO product (product_id, supplier_id) VALUES (4, 5);
