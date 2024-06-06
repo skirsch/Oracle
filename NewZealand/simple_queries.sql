@@ -38,3 +38,27 @@ SELECT TRUNC(TO_DATE('17-OCT-2093','DD-MON-YYYY'),'day')
   "mydate" FROM DUAL;
   
 select * from DUAL;
+
+CREATE TABLE numbers (
+  value INT
+);
+INSERT INTO numbers (value)  VALUES  (1);
+
+CREATE TABLE people (
+  name VARCHAR(255)
+);
+INSERT INTO people (name) VALUES ('steve');
+
+
+CREATE TABLE product(
+   product_id       number(7) NOT NULL,
+   supplier_id      INT,
+   product_name     VARCHAR(30),
+   product_price    DOUBLE PRECISION,
+   product_category VARCHAR(30),
+   product_brand    VARCHAR(20),
+   product_expire   DATE,
+   PRIMARY KEY (product_id));
+INSERT INTO product (product_id, supplier_id) VALUES (1, 2);
+select * from product;
+select product_id,supplier_id from product;
