@@ -110,3 +110,37 @@ GROUP BY
     TO_CHAR(DOD, 'IW')
 ORDER BY
     TO_CHAR(DOD, 'IW');
+
+
+### get the sending sites for a given batch number given in a given month
+### to those of a certain age
+
+SELECT 
+    sending_site, 
+    COUNT(*) AS match_count
+FROM 
+    JOINED_TABLE
+WHERE 
+    BATCH_ID = 39
+    AND VAX_DATE BETWEEN TO_DATE('01-JAN-2022', 'DD-MON-YYYY') AND TO_DATE('28-FEB-2022', 'DD-MON-YYYY')
+    AND (VAX_DATE - DOB) / 365.25 BETWEEN 85 AND 90
+GROUP BY 
+    sending_site
+ORDER BY 
+    match_count DESC;
+
+
+### Look at batch_id distributed by Berrys Health
+SELECT 
+    batch_id,
+    COUNT(*) AS match_count
+FROM 
+    JOINED_TABLE
+WHERE 
+    sending_site LIKE 'Berrys Health%'
+    AND VAX_DATE BETWEEN TO_DATE('01-JAN-2022', 'DD-MON-YYYY') AND TO_DATE('31-JAN-2022', 'DD-MON-YYYY')
+--  AND (VAX_DATE - DOB) / 365.25 BETWEEN 85 AND 90
+GROUP BY 
+    batch_id
+ORDER BY 
+    match_count DESC;
